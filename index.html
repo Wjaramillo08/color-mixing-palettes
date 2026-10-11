@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Laboratorio de Mezclas - Taller de Pintura</title>
+    <style>
+        /* ==========================================================================
+           1. ESTILOS GENERALES Y NAVEGACIÓN
+           ========================================================================== */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+        .container {
+            background: #ffffff;
+            padding: 20px 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-width: 550px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Barra de Pestañas Superior */
+        .app-header-nav {
+            display: flex;
+            background: #e5e5e7;
+            border-radius: 10px;
+            padding: 3px;
+            margin-bottom: 15px;
+        }
+        .nav-tab {
+            flex: 1;
+            text-align: center;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #86868b;
+            transition: all 0.2s ease;
+        }
+        .nav-tab.active {
+            background: #ffffff;
+            color: #1d1d1f;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .page-screen {
+            display: none;
+        }
+        .page-screen.active {
+            display: block;
+        }
+
+        h1 {
+            font-size: 20px;
+            text-align: center;
+            margin-top: 5px;
+            margin-bottom: 15px;
+        }
+
+        /* ==========================================================================
+           2. ESTILOS DE LA PANTALLA MEZCLADOR
+           ========================================================================== */
+        .image-zone {
+            border: 2px dashed #d2d2d7;
+            border-radius: 8px;
+            padding: 0;
+            text-align: center;
+            background: #fbfbfd;
+            position: relative;
+            overflow: hidden;
+            height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        #previewImage {
+            max-width: 100%;
+            max-height: 100%;
+            transform-origin: center center;
+            cursor: crosshair;
+            position: absolute;
+            user-select: none;
+            -webkit-user-drag: none;
+            display: none;
+            z-index: 1;
+        }
+        #wheelCanvas {
+            display: none;
+            position: absolute;
+            z-index: 10;
+            cursor: crosshair;
+            background: #ffffff;
+            border-radius: 8px;
+            touch-action: none;
+            transform-origin: center center;
+        }
+        .upload-prompt-wrap { padding: 15px; z-index: 2; }
+        .upload-btn {
+            display: inline-block;
+            padding: 6px 12px;
+            background-color: #0066cc;
+            color: white;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-top: 8px;
+            cursor: pointer;
+        }
+        #fileInput { display: none; }
+
+        .toolbar-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f5f5f7;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            gap: 10px;
+        }
+        .zoom-controls { display: flex; align-items: center; gap: 6px; flex-grow: 1; }
+        .zoom-controls input[type="range"] { flex-grow: 1; }
+        .sample-controls { display: flex; align-items: center; gap: 4px; }
+        .sample-controls select { font-size: 12px; padding: 2px 4px; border-radius: 4px; border: 1px solid #d2d2d7; background: #fff; }
+
+        .selector-zone { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 15px; }
+        #colorDisplay {
+            width: 75px; height: 75px; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            border: 3px solid #ffffff; outline: 1px solid #d2d2d7; cursor: pointer; transition: transform 0.1s ease;
+        }
+        #colorDisplay:active { transform: scale(0.95); }
+
+        .hex-input-wrap {
+            display: flex; align-items: center; gap: 2px; background: #f5f5f7;
+            padding: 2px 8px; border-radius: 6px; border: 1px solid #d2d2d7;
+        }
+        .hex-input-wrap span { font-family: monospace; font-size: 14px; color: #86868b; font-weight: 600; }
+        #hexInput { font-family: monospace; font-size: 14px; font-weight: 600; color: #1d1d1f; border: none; background: transparent; width: 70px; outline: none; text-transform: uppercase; }
+
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .btn-sec {
+            background-color: #f5f5f7; color: #0066cc; border: 1px solid #d2d2d7;
+            padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600;
+            cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s ease;
+        }
+        .btn-sec:disabled { color: #86868b; background-color: #f5f5f7; border-color: #e5e5e7; cursor: not-allowed; opacity: 0.6; }
+
+        .mode-switch-container {
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            margin-bottom: 10px; background: #f5f5f7; padding: 8px; border-radius: 8px; box-sizing: border-box;
+        }
+        .switch-label { font-size: 13px; font-weight: 600; color: #86868b; }
+        .switch-label.active { color: #1d1d1f; }
+        .switch { position: relative; display: inline-block; width: 46px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-switch { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #0066cc; transition: .3s; border-radius: 24px; }
+        .slider-switch:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider-switch { background-color: #34c759; }
+        input:checked + .slider-switch:before { transform: translateX(22px); }
+
+        .lock-color-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 12px; font-size: 12px; font-weight: 600; color: #1d1d1f; }
+        .lock-color-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #0066cc; cursor: pointer; }
+
+        .section-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; border-bottom: 1px solid #e5e5e7; padding-bottom: 4px; }
+
+        .slider-container { display: flex; align-items: center; margin-bottom: 10px; gap: 8px; width: 100%; box-sizing: border-box; }
+        .label { width: 75px; font-size: 12px; font-weight: 600; padding: 4px 2px; border-radius: 6px; text-align: center; flex-shrink: 0; }
+        .slider-wrapper { flex-grow: 1; display: flex; align-items: center; }
+        input[type="range"] { width: 100%; -webkit-appearance: none; background: #e5e5e7; height: 8px; border-radius: 4px; outline: none; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+            background: #ffffff; border: 2px solid #86868b; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .right-display { width: 55px; text-align: right; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; font-size: 14px; font-weight: 600; }
+        .percentage-input { width: 42px; padding: 4px 2px; font-size: 13px; font-weight: 600; text-align: right; border: 1px solid #d2d2d7; border-radius: 6px; background-color: #f5f5f7; outline: none; box-sizing: border-box; -webkit-appearance: none; -moz-appearance: textfield; margin: 0; }
+        .percentage-input::-webkit-outer-spin-button, .percentage-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .percentage-input:focus { border-color: #0066cc; background-color: #ffffff; }
+        .parts-text { font-size: 13px; font-weight: 600; color: #1d1d1f; text-align: right; white-space: nowrap; }
+
+        .saved-colors-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .saved-card { display: flex; align-items: center; background: #f5f5f7; padding: 8px 12px; border-radius: 8px; justify-content: space-between; gap: 10px; }
+        .saved-card-left { display: flex; align-items: center; gap: 10px; }
+        .saved-circle { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2); flex-shrink: 0; }
+        .saved-info { display: flex; flex-direction: column; }
+        .saved-hex { font-family: monospace; font-size: 12px; font-weight: 600; }
+        .saved-details { font-size: 11px; color: #86868b; }
+        .saved-actions { display: flex; gap: 6px; }
+        .btn-small { background: #ffffff; border: 1px solid #d2d2d7; border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; color: #0066cc; }
+        .btn-del { color: #ff3b30; }
+
+        /* ==========================================================================
+           3. ESTILOS DE LA PANTALLA PALETAS
+           ========================================================================== */
+        .category-filter-row {
+            display: flex; gap: 6px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 4px;
+        }
+        .cat-chip {
+            padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 15px;
+            background: #f5f5f7; border: 1px solid #d2d2d7; cursor: pointer; white-space: nowrap; color: #1d1d1f;
+        }
+        .cat-chip.active { background: #0066cc; color: #ffffff; border-color: #0066cc; }
+
+        .surprise-card {
+            background: #f5f5f7; border-radius: 10px; padding: 12px; margin-bottom: 20px; border: 1px solid #e5e5e7;
+        }
+        .surprise-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .surprise-title { font-size: 13px; font-weight: 600; color: #1d1d1f; }
+
+        .palette-bar {
+            display: flex; height: 42px; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.1s ease;
+        }
+        .palette-bar:active { transform: scale(0.98); }
+        .palette-color-swatch { flex: 1; height: 100%; position: relative; }
+
+        .builder-box {
+            background: #f5f5f7; border-radius: 10px; padding: 12px; margin-bottom: 20px; border: 1px solid #e5e5e7;
+        }
+        .builder-inputs { display: flex; gap: 6px; margin-bottom: 10px; }
+        .builder-hex-input {
+            width: 70px; padding: 6px; font-family: monospace; font-size: 12px;
+            border-radius: 6px; border: 1px solid #d2d2d7; text-transform: uppercase; text-align: center;
+        }
+        .builder-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .builder-controls select { padding: 5px; font-size: 12px; border-radius: 6px; border: 1px solid #d2d2d7; }
+
+        .palettes-grid { display: flex; flex-direction: column; gap: 12px; }
+
+        /* Modal Detalle de Paleta */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; padding: 15px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: #ffffff; border-radius: 12px; width: 100%; max-width: 450px;
+            padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); box-sizing: border-box;
+        }
+        .modal-colors-list { display: flex; flex-direction: column; gap: 8px; margin: 15px 0; }
+        .modal-color-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; border-radius: 8px; background: #f5f5f7; cursor: pointer;
+        }
+        .modal-color-row:hover { background: #e5e5e7; }
+        .modal-swatch-circle { width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- NAVEGACIÓN PRINCIPAL ENTRE PESTAÑAS -->
+    <div class="app-header-nav">
+        <div class="nav-tab active" id="tab-mixer" onclick="switchPage('mixer')">🧪 Mezclador</div>
+        <div class="nav-tab" id="tab-palettes" onclick="switchPage('palettes')">🎨 Paletas</div>
+    </div>
+
+    <!-- PANTALLA 1: MEZCLADOR DE PINTURA -->
+    <div id="page-mixer" class="page-screen active">
+        <h1>Laboratorio de Mezclas</h1>
+        
+        <div class="image-container-wrapper">
+            <div class="image-zone" id="dropZone">
+                <div class="upload-prompt-wrap" id="uploadPrompt">
+                    <span style="font-size: 13px; color: #86868b;">Arrastra una foto aquí o</span><br>
+                    <div class="upload-btn" onclick="document.getElementById('fileInput').click()">Examinar imagen</div>
+                </div>
+                <input type="file" id="fileInput" accept="image/*">
+                <img id="previewImage" alt="Previsualización">
+                <canvas id="wheelCanvas" width="200" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="toolbar-row">
+            <div class="zoom-controls">
+                <span>Zoom:</span>
+                <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="1" disabled>
+                <span id="zoomVal">1.0x</span>
+            </div>
+            <div class="sample-controls">
+                <span>Muestra:</span>
+                <select id="sampleSize">
+                    <option value="1">1x1</option>
+                    <option value="3" selected>3x3</option>
+                    <option value="5">5x5</option>
+                    <option value="9">9x9</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="selector-zone">
+            <div id="colorDisplay" title="Toca para desplegar la rueda de color"></div>
+            
+            <div class="hex-input-wrap">
+                <span>#</span>
+                <input type="text" id="hexInput" value="E67E22" maxlength="6">
+            </div>
+            
+            <div class="action-buttons">
+                <button id="newImgBtn" class="btn-sec">🖼️ Nueva imagen</button>
+                <button id="undoBtn" class="btn-sec" disabled>⤺ Deshacer (0)</button>
+                <button id="saveBtn" class="btn-sec">💾 Guardar mezcla</button>
+            </div>
+        </div>
+
+        <div class="mode-switch-container">
+            <span class="switch-label active" id="lbl-pct">%</span>
+            <label class="switch">
+                <input type="checkbox" id="modeToggle">
+                <span class="slider-switch"></span>
+            </label>
+            <span class="switch-label" id="lbl-parts">Partes</span>
+        </div>
+
+        <div class="lock-color-row">
+            <input type="checkbox" id="lockColorToggle">
+            <label for="lockColorToggle">Fijar color al mover sliders (Ajuste proporcional)</label>
+        </div>
+
+        <div class="section-title" id="panelTitle">Proporciones de la Paleta</div>
+        
+        <div id="paint-sliders">
+            <div class="slider-container">
+                <div class="label" style="background-color: #ff3b30; color: #ffffff;">Rojo</div>
+                <div class="slider-wrapper"><input type="range" id="slider-r" min="0" max="100" value="43"></div>
+                <div class="right-display" id="box-r">
+                    <input type="number" id="num-r" class="percentage-input" min="0" max="100" value="43"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="label" style="background-color: #ffcc00; color: #1d1d1f;">Amarillo</div>
+                <div class="slider-wrapper"><input type="range" id="slider-y" min="0" max="100" value="40"></div>
+                <div class="right-display" id="box-y">
+                    <input type="number" id="num-y" class="percentage-input" min="0" max="100" value="40"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="label" style="background-color: #0055b8; color: #ffffff;">Azul</div>
+                <div class="slider-wrapper"><input type="range" id="slider-b" min="0" max="100" value="0"></div>
+                <div class="right-display" id="box-b">
+                    <input type="number" id="num-b" class="percentage-input" min="0" max="100" value="0"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="label" style="background-color: #000000; color: #ffffff;">Negro</div>
+                <div class="slider-wrapper"><input type="range" id="slider-k" min="0" max="100" value="3"></div>
+                <div class="right-display" id="box-k">
+                    <input type="number" id="num-k" class="percentage-input" min="0" max="100" value="3"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="label" style="background-color: #ffffff; color: #1d1d1f; border: 1px solid #d2d2d7;">Blanco</div>
+                <div class="slider-wrapper"><input type="range" id="slider-w" min="0" max="100" value="14"></div>
+                <div class="right-display" id="box-w">
+                    <input type="number" id="num-w" class="percentage-input" min="0" max="100" value="14"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 25px;">
+            <div class="section-title">Paleta Guardada</div>
+            <div id="savedList" class="saved-colors-list">
+                <div style="font-size: 12px; color: #86868b; text-align: center;">No hay mezclas guardadas aún.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANTALLA 2: HARMONÍA Y TEORÍA DEL COLOR -->
+    <div id="page-palettes" class="page-screen">
+        <h1>Paletas Armónicas</h1>
+
+        <!-- PALETA SORPRESA ALEATORIA -->
+        <div class="surprise-card">
+            <div class="surprise-header">
+                <span class="surprise-title">Paleta del Día</span>
+                <button class="btn-sec" onclick="generarPaletaSorpresa()">✨ Sorpréndeme con nueva paleta</button>
+            </div>
+            <div id="surprisePaletteContainer"></div>
+        </div>
+
+        <!-- COMPLETADOR PERSONALIZADO -->
+        <div class="builder-box">
+            <div class="section-title" style="margin-bottom: 8px; border:none;">Completar Paleta Personalizada</div>
+            <div style="font-size: 11px; color:#86868b; margin-bottom: 8px;">Ingresa de 1 a 3 colores base en HEX:</div>
+            <div class="builder-inputs">
+                <input type="text" id="hexSeed1" class="builder-hex-input" placeholder="E67E22" value="E67E22" maxlength="6">
+                <input type="text" id="hexSeed2" class="builder-hex-input" placeholder="Opcional" maxlength="6">
+                <input type="text" id="hexSeed3" class="builder-hex-input" placeholder="Opcional" maxlength="6">
+            </div>
+            <div class="builder-controls">
+                <span style="font-size: 12px; font-weight: 600;">Total colores (N):</span>
+                <select id="paletteNCount">
+                    <option value="4">4 colores</option>
+                    <option value="5" selected>5 colores</option>
+                    <option value="6">6 colores</option>
+                    <option value="7">7 colores</option>
+                    <option value="8">8 colores</option>
+                    <option value="9">9 colores</option>
+                </select>
+                <button class="btn-sec" style="background:#0066cc; color:#fff;" onclick="generarPaletaCompletada()">Completar</button>
+            </div>
+            <div id="customBuildContainer" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- FILTROS POR CATEGORÍA -->
+        <div class="category-filter-row">
+            <div class="cat-chip active" onclick="filtrarCategoria('todas', this)">Todas</div>
+            <div class="cat-chip" onclick="filtrarCategoria('calidas', this)">🔥 Cálidas</div>
+            <div class="cat-chip" onclick="filtrarCategoria('frias', this)">❄️ Frías</div>
+            <div class="cat-chip" onclick="filtrarCategoria('pastel', this)">🌸 Pastel</div>
+            <div class="cat-chip" onclick="filtrarCategoria('contraste', this)">⚡ Alto Contraste</div>
+        </div>
+
+        <!-- REJILLA DE PALETAS TEÓRICAS -->
+        <div id="palettesGrid" class="palettes-grid"></div>
+    </div>
+</div>
+
+<!-- MODAL DE DETALLE DE PALETA -->
+<div class="modal-overlay" id="paletteModal" onclick="cerrarModalDetalle(event)">
+    <div class="modal-content">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="modalPaletteTitle" style="font-weight: 700; font-size: 15px;">Detalle de la Paleta</span>
+            <button class="btn-small" onclick="cerrarModalDetalleDirecto()">✕</button>
+        </div>
+        <div id="modalPaletteBar" style="margin-top: 10px;"></div>
+        <div class="modal-colors-list" id="modalColorsList"></div>
+        <div style="font-size: 11px; color:#86868b; text-align: center;">Toca cualquier color para enviarlo al Mezclador.</div>
+    </div>
+</div>
+
+<canvas id="canvasAux" style="display:none;"></canvas>
+
+<!-- CARGA DE LÓGICA MODULAR -->
+<script src="js/app.js"></script>
+<script src="js/palettes.js"></script>
+<script>
+    function switchPage(page) {
+        document.querySelectorAll('.page-screen').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(`page-${page}`).classList.add('active');
+        document.getElementById(`tab-${page}`).classList.add('active');
+    }
+</script>
+</body>
+</html>
