@@ -2,7 +2,6 @@
    js/palettes.js - Generador de Paletas, Armonías y Almacenamiento
    ========================================================================== */
 
-// 4. NUEVAS PALETAS TEMÁTICAS AÑADIDAS EN LA BASE DE DATOS
 const BASE_PALETTES = [
     { id: 1, title: "Tierra de Siena", category: "calidas", colors: ["#8B4513", "#A0522D", "#CD853F", "#DEB887", "#F5DEB3"] },
     { id: 2, title: "Ocaso Cálido", category: "calidas", colors: ["#D35400", "#E67E22", "#F1C40F", "#E74C3C", "#C0392B"] },
@@ -19,6 +18,7 @@ const BASE_PALETTES = [
 
 let activePaletteModal = null;
 let userSavedPalettes = JSON.parse(localStorage.getItem('userSavedPalettes') || '[]');
+let expandirPaletasGuardadas = false; // Estado para colapsar/expandir paletas guardadas
 
 document.addEventListener("DOMContentLoaded", () => {
     generarPaletaSorpresa();
@@ -105,7 +105,7 @@ function crearBarraPaletaHTML(titulo, colorsArray) {
     `;
 }
 
-// MODAL Y PERSISTENCIA DE MANTENER ABIERTO AL NAVEGAR AL MEZCLADOR
+// MODAL DE PALETAS
 function abrirModalDetalle(titulo, colorsArray) {
     activePaletteModal = { titulo, colorsArray };
     document.getElementById("modalPaletteTitle").textContent = titulo;
@@ -129,7 +129,6 @@ function abrirModalDetalle(titulo, colorsArray) {
     document.getElementById("paletteModal").classList.add("active");
 }
 
-// 3. MANTIENE EL MODAL ABIERTO MIENTRAS SE CONSULTAN MEZCLAS
 function seleccionarColorDePaleta(hex) {
     cargarColorEnMezclador(hex);
 }
@@ -137,14 +136,16 @@ function seleccionarColorDePaleta(hex) {
 function cerrarModalDetalle(e) {
     if (e.target.id === "paletteModal") {
         document.getElementById("paletteModal").classList.remove("active");
+        activePaletteModal = null;
     }
 }
 
 function cerrarModalDetalleDirecto() {
     document.getElementById("paletteModal").classList.remove("active");
+    activePaletteModal = null;
 }
 
-// 2. GUARDAR PALETAS COMPLETAS EN MEMORIA LOCAL
+// GUARDAR Y RENDERIZAR PALETAS DEL USUARIO (COLAPSAR EN 2)
 function guardarPaletaCompletaDesdeModal() {
     if (!activePaletteModal) return;
     
@@ -166,6 +167,7 @@ function borrarPaletaGuardadaUsuario(id) {
     renderizarPaletasGuardadasUsuario();
 }
 
+// 2. MUESTRA ÚNICAMENTE LAS 2 MÁS RECIENTES Y PERMITE EXPANDIR/COLAPSAR
 function renderizarPaletasGuardadasUsuario() {
     const container = document.getElementById("userSavedPalettesGrid");
     if (userSavedPalettes.length === 0) {
@@ -173,7 +175,9 @@ function renderizarPaletasGuardadasUsuario() {
         return;
     }
 
-    container.innerHTML = userSavedPalettes.map(p => `
+    const mostradas = expandirPaletasGuardadas ? userSavedPalettes : userSavedPalettes.slice(0, 2);
+
+    let html = mostradas.map(p => `
         <div style="background:#f5f5f7; padding:10px; border-radius:10px; border:1px solid #e5e5e7; position:relative;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                 <span style="font-size:12px; font-weight:600; color:#1d1d1f;">${p.title}</span>
@@ -182,7 +186,22 @@ function renderizarPaletasGuardadasUsuario() {
             ${crearBarraPaletaHTML(p.title, p.colors)}
         </div>
     `).join('');
+
+    if (userSavedPalettes.length > 2) {
+        html += `
+            <button class="toggle-expand-btn" onclick="toggleExpandirPaletas()">
+                ${expandirPaletasGuardadas ? '▲ Ver menos' : `▼ Ver más (${userSavedPalettes.length - 2} restantes)`}
+            </button>
+        `;
+    }
+
+    container.innerHTML = html;
 }
+
+window.toggleExpandirPaletas = function() {
+    expandirPaletasGuardadas = !expandirPaletasGuardadas;
+    renderizarPaletasGuardadasUsuario();
+};
 
 function hslToHex(h, s, l) {
     s /= 100; l /= 100;
