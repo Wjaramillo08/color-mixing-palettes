@@ -18,7 +18,7 @@ const BASE_PALETTES = [
 
 let activePaletteModal = null;
 let userSavedPalettes = JSON.parse(localStorage.getItem('userSavedPalettes') || '[]');
-let expandirPaletasGuardadas = false; // Estado para colapsar/expandir paletas guardadas
+let expandirPaletasGuardadas = false;
 
 document.addEventListener("DOMContentLoaded", () => {
     generarPaletaSorpresa();
@@ -145,20 +145,36 @@ function cerrarModalDetalleDirecto() {
     activePaletteModal = null;
 }
 
-// GUARDAR Y RENDERIZAR PALETAS DEL USUARIO (COLAPSAR EN 2)
+// GUARDAR Y RENOMBRAR PALETAS GUARDADAS POR EL USUARIO
 function guardarPaletaCompletaDesdeModal() {
     if (!activePaletteModal) return;
     
+    const nuevoNombre = prompt("Asigna un nombre a tu paleta:", activePaletteModal.titulo);
+    if (nuevoNombre === null) return; // Cancela el guardado
+
+    const tituloFinal = nuevoNombre.trim() || activePaletteModal.titulo;
+
     const nuevaPaleta = {
         id: Date.now(),
-        title: activePaletteModal.titulo,
+        title: tituloFinal,
         colors: activePaletteModal.colorsArray
     };
 
     userSavedPalettes.unshift(nuevaPaleta);
     localStorage.setItem('userSavedPalettes', JSON.stringify(userSavedPalettes));
     renderizarPaletasGuardadasUsuario();
-    alert(`Paleta "${activePaletteModal.titulo}" guardada con éxito.`);
+}
+
+function editarNombrePaletaGuardada(id) {
+    const paleta = userSavedPalettes.find(p => p.id === id);
+    if (!paleta) return;
+
+    const nuevoNombre = prompt("Editar nombre de la paleta:", paleta.title);
+    if (nuevoNombre !== null && nuevoNombre.trim() !== "") {
+        paleta.title = nuevoNombre.trim();
+        localStorage.setItem('userSavedPalettes', JSON.stringify(userSavedPalettes));
+        renderizarPaletasGuardadasUsuario();
+    }
 }
 
 function borrarPaletaGuardadaUsuario(id) {
@@ -167,9 +183,11 @@ function borrarPaletaGuardadaUsuario(id) {
     renderizarPaletasGuardadasUsuario();
 }
 
-// 2. MUESTRA ÚNICAMENTE LAS 2 MÁS RECIENTES Y PERMITE EXPANDIR/COLAPSAR
+// CORRECCIÓN DEL COLAPSO (MUESTRA 2 MÁS RECIENTES Y BOTÓN VER MÁS)
 function renderizarPaletasGuardadasUsuario() {
     const container = document.getElementById("userSavedPalettesGrid");
+    if (!container) return;
+
     if (userSavedPalettes.length === 0) {
         container.innerHTML = `<div style="font-size: 12px; color: #86868b; text-align: center;">No has guardado paletas aún.</div>`;
         return;
@@ -180,7 +198,9 @@ function renderizarPaletasGuardadasUsuario() {
     let html = mostradas.map(p => `
         <div style="background:#f5f5f7; padding:10px; border-radius:10px; border:1px solid #e5e5e7; position:relative;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                <span style="font-size:12px; font-weight:600; color:#1d1d1f;">${p.title}</span>
+                <span class="editable-title" style="font-size:12px; font-weight:600; color:#1d1d1f;" onclick="editarNombrePaletaGuardada(${p.id})" title="Haz clic para renombrar">
+                    ✏️ ${p.title}
+                </span>
                 <button class="btn-small btn-del" onclick="borrarPaletaGuardadaUsuario(${p.id})">✕ Borrar</button>
             </div>
             ${crearBarraPaletaHTML(p.title, p.colors)}
