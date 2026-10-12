@@ -201,6 +201,12 @@
         .btn-small { background: #ffffff; border: 1px solid #d2d2d7; border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; color: #0066cc; }
         .btn-del { color: #ff3b30; }
 
+        /* Botones de Colapsar/Expandir */
+        .toggle-expand-btn {
+            background: transparent; border: none; color: #0066cc; font-size: 12px;
+            font-weight: 600; cursor: pointer; margin-top: 8px; text-align: center; width: 100%;
+        }
+
         /* ==========================================================================
            3. ESTILOS DE LA PANTALLA PALETAS
            ========================================================================== */
@@ -463,6 +469,12 @@
         document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
         document.getElementById(`page-${page}`).classList.add('active');
         document.getElementById(`tab-${page}`).classList.add('active');
+
+        // 1. RE-MOSTRAR EL MODAL SI REGRESA A LA PESTAÑA DE PALETAS Y HABÍA UNA PALETA ACTIVA
+        if (page === 'palettes' && typeof activePaletteModal !== 'undefined' && activePaletteModal) {
+            const modalEl = document.getElementById("paletteModal");
+            if (modalEl) modalEl.classList.add("active");
+        }
     }
 </script>
 </body>
