@@ -135,9 +135,15 @@ hexInput.addEventListener('keyup', (e) => {
     }
 });
 
+// 1. RESET AUTOMÁTICO DE ZOOM AL CONMUTAR ENTRE RUEDA E IMAGEN
 colorDisplay.addEventListener('click', (e) => {
     e.stopPropagation();
     modoRuedaActivo = !modoRuedaActivo;
+    
+    // Reinicia zoom y paneo
+    scale = 1; posX = 0; posY = 0;
+    zoomSlider.value = 1; zoomVal.textContent = "1.0x";
+
     if (modoRuedaActivo) {
         wheelCanvas.style.display = 'block';
         if (previewImage.src) previewImage.style.display = 'none';
@@ -485,7 +491,6 @@ function renderizarHerramienta() {
     if (modoRuedaActivo) dibujarRuedaCromatica();
 }
 
-// Función global exportada para cargar cualquier color directamente desde el módulo de Paletas
 window.cargarColorEnMezclador = function(hex) {
     const val = hex.replace('#', '').toUpperCase();
     guardarEstadoEnHistorial(false);
