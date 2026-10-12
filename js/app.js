@@ -11,7 +11,7 @@ let ultimoCambioFueFoto = false;
 let estadoPrevioAFoto = null; 
 let modoRuedaActivo = false;
 let arrastrandoEnRueda = false;
-let expandirMezclasGuardadas = false; // Estado para colapsar/expandir mezclas
+let expandirMezclasGuardadas = false;
 
 const colorDisplay = document.getElementById('colorDisplay');
 const hexInput = document.getElementById('hexInput');
@@ -490,7 +490,6 @@ function renderizarHerramienta() {
     if (modoRuedaActivo) dibujarRuedaCromatica();
 }
 
-// 1. OCULTA EL MODAL DE LA PALETA TEMPORALMENTE AL NAVEGAR AL MEZCLADOR
 window.cargarColorEnMezclador = function(hex) {
     const val = hex.replace('#', '').toUpperCase();
     guardarEstadoEnHistorial(false);
@@ -502,7 +501,6 @@ window.cargarColorEnMezclador = function(hex) {
     currentProportions = rgbToRyb(r, g, b);
     renderizarHerramienta();
 
-    // Oculta visualmente el modal para dejar libre el mezclador
     const modalEl = document.getElementById("paletteModal");
     if (modalEl) modalEl.classList.remove("active");
 
@@ -548,7 +546,6 @@ window.borrarMezclaGuardada = function(id) {
     renderizarListaGuardados();
 };
 
-// 3. MUESTRA LAS 2 MÁS RECIENTES Y COLAPSA/EXPANDE LAS DEMÁS MEZCLAS
 function renderizarListaGuardados() {
     if (savedColors.length === 0) {
         savedList.innerHTML = `<div style="font-size: 12px; color: #86868b; text-align: center;">No hay mezclas guardadas aún.</div>`;
@@ -642,7 +639,7 @@ previewImage.addEventListener('click', function(e) {
             const px = xCenterX + dx;
             const py = yCenterY + dy;
 
-            if (px >= 0 && px < canvasAux.width && py >= 0 && py < canvasAux.height) {
+            if (px >= 0 && px < canvasAux.width && px < canvasAux.width && py >= 0 && py < canvasAux.height) {
                 const data = ctxAux.getImageData(px, py, 1, 1).data;
                 if (data[3] > 0) { 
                     sumR += data[0];
