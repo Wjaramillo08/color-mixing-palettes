@@ -1,28 +1,32 @@
 /* ==========================================================================
-   js/palettes.js - Generador de Paletas, Armonías Teóricas y Modales
+   js/palettes.js - Generador de Paletas, Armonías y Almacenamiento
    ========================================================================== */
 
-// Base de datos de paletas por categoría según la teoría del color
+// 4. NUEVAS PALETAS TEMÁTICAS AÑADIDAS EN LA BASE DE DATOS
 const BASE_PALETTES = [
-    { id: 1, title: "Ocaso Cálido", category: "calidas", colors: ["#D35400", "#E67E22", "#F1C40F", "#E74C3C", "#C0392B"] },
-    { id: 2, title: "Tierra de Siena", category: "calidas", colors: ["#8B4513", "#A0522D", "#CD853F", "#DEB887", "#F5DEB3"] },
-    { id: 3, title: "Noche Profunda", category: "frias", colors: ["#1B2631", "#283747", "#2E4053", "#5D6D7E", "#AEB6BF"] },
-    { id: 4, title: "Marina de Urabá", category: "frias", colors: ["#117864", "#16A085", "#48C9B0", "#76D7C4", "#A3E4D7"] },
-    { id: 5, title: "Primavera Dulce", category: "pastel", colors: ["#FADBD8", "#F5CBA7", "#FCF3CF", "#D4EFDF", "#D6EAF8"] },
-    { id: 6, title: "Bruma Suave", category: "pastel", colors: ["#E8DAEF", "#D4E6F1", "#D1F2EB", "#FCF3CF", "#FADBD8"] },
-    { id: 7, title: "Complementarios Puros", category: "contraste", colors: ["#0055B8", "#FF3B30", "#FFCC00", "#000000", "#FFFFFF"] },
-    { id: 8, title: "Tríada Vibrante", category: "contraste", colors: ["#8E44AD", "#27AE60", "#D35400", "#2980B9", "#F1C40F"] }
+    { id: 1, title: "Tierra de Siena", category: "calidas", colors: ["#8B4513", "#A0522D", "#CD853F", "#DEB887", "#F5DEB3"] },
+    { id: 2, title: "Ocaso Cálido", category: "calidas", colors: ["#D35400", "#E67E22", "#F1C40F", "#E74C3C", "#C0392B"] },
+    { id: 3, title: "Sabores del Mediterráneo", category: "calidas", colors: ["#556B2F", "#C0392B", "#F39C12", "#7D0A0A", "#F5F5DC"] },
+    { id: 4, title: "Ambiente del Sahara", category: "calidas", colors: ["#EDC9AF", "#D2B48C", "#C19A6B", "#E07A5F", "#2A9D8F"] },
+    { id: 5, title: "Amazonía Salvaje", category: "frias", colors: ["#1B4332", "#2D6A4F", "#854D0E", "#D97706", "#C026D3"] },
+    { id: 6, title: "Noche Profunda", category: "frias", colors: ["#1B2631", "#283747", "#2E4053", "#5D6D7E", "#AEB6BF"] },
+    { id: 7, title: "Marina de Urabá", category: "frias", colors: ["#117864", "#16A085", "#48C9B0", "#76D7C4", "#A3E4D7"] },
+    { id: 8, title: "Primavera Dulce", category: "pastel", colors: ["#FADBD8", "#F5CBA7", "#FCF3CF", "#D4EFDF", "#D6EAF8"] },
+    { id: 9, title: "Bruma Suave", category: "pastel", colors: ["#E8DAEF", "#D4E6F1", "#D1F2EB", "#FCF3CF", "#FADBD8"] },
+    { id: 10, title: "Complementarios Puros", category: "contraste", colors: ["#0055B8", "#FF3B30", "#FFCC00", "#000000", "#FFFFFF"] },
+    { id: 11, title: "Tríada Vibrante", category: "contraste", colors: ["#8E44AD", "#27AE60", "#D35400", "#2980B9", "#F1C40F"] }
 ];
 
 let activePaletteModal = null;
+let userSavedPalettes = JSON.parse(localStorage.getItem('userSavedPalettes') || '[]');
 
-// Inicializa las paletas al cargar la aplicación
 document.addEventListener("DOMContentLoaded", () => {
     generarPaletaSorpresa();
     renderizarGridPaletas('todas');
+    renderizarPaletasGuardadasUsuario();
 });
 
-// 1. GENERADOR "SORPRÉNDEME CON NUEVA PALETA"
+// GENERADOR "SORPRÉNDEME CON NUEVA PALETA"
 function generarPaletaSorpresa() {
     const hueBase = Math.floor(Math.random() * 360);
     const count = 5;
@@ -39,7 +43,7 @@ function generarPaletaSorpresa() {
     container.innerHTML = crearBarraPaletaHTML("Paleta Sorpresa", colors);
 }
 
-// 2. COMPLETADOR DE PALETA PERSONALIZADA (1-3 Colores -> N Colores)
+// COMPLETADOR DE PALETA PERSONALIZADA
 function generarPaletaCompletada() {
     const inputs = [
         document.getElementById("hexSeed1").value.trim().replace('#', ''),
@@ -67,7 +71,7 @@ function generarPaletaCompletada() {
     container.innerHTML = crearBarraPaletaHTML("Paleta Personalizada", resultColors);
 }
 
-// 3. RENDERIZADO Y FILTRADO POR CATEGORÍA
+// RENDERIZADO Y FILTRADO POR CATEGORÍA
 function filtrarCategoria(cat, elemento) {
     document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
     elemento.classList.add('active');
@@ -88,7 +92,6 @@ function renderizarGridPaletas(categoria) {
     `).join('');
 }
 
-// Genera la vista previa interactiva en miniatura
 function crearBarraPaletaHTML(titulo, colorsArray) {
     const colorsJson = JSON.stringify(colorsArray).replace(/"/g, '&quot;');
     const swatches = colorsArray.map(c => `
@@ -102,19 +105,17 @@ function crearBarraPaletaHTML(titulo, colorsArray) {
     `;
 }
 
-// 4. MODAL DETALLADO DE LA PALETA
+// MODAL Y PERSISTENCIA DE MANTENER ABIERTO AL NAVEGAR AL MEZCLADOR
 function abrirModalDetalle(titulo, colorsArray) {
     activePaletteModal = { titulo, colorsArray };
     document.getElementById("modalPaletteTitle").textContent = titulo;
     
-    // Muestra la barra superior en grande
     document.getElementById("modalPaletteBar").innerHTML = `
         <div class="palette-bar" style="height: 50px; cursor:default;">
             ${colorsArray.map(c => `<div class="palette-color-swatch" style="background-color: ${c};"></div>`).join('')}
         </div>
     `;
 
-    // Genera la lista de códigos HEX para seleccionar y enviar al Mezclador
     document.getElementById("modalColorsList").innerHTML = colorsArray.map(c => `
         <div class="modal-color-row" onclick="seleccionarColorDePaleta('${c}')">
             <div style="display:flex; align-items:center; gap:10px;">
@@ -128,8 +129,8 @@ function abrirModalDetalle(titulo, colorsArray) {
     document.getElementById("paletteModal").classList.add("active");
 }
 
+// 3. MANTIENE EL MODAL ABIERTO MIENTRAS SE CONSULTAN MEZCLAS
 function seleccionarColorDePaleta(hex) {
-    cerrarModalDetalleDirecto();
     cargarColorEnMezclador(hex);
 }
 
@@ -143,7 +144,46 @@ function cerrarModalDetalleDirecto() {
     document.getElementById("paletteModal").classList.remove("active");
 }
 
-// Funciones auxiliares de conversión HSL / HEX
+// 2. GUARDAR PALETAS COMPLETAS EN MEMORIA LOCAL
+function guardarPaletaCompletaDesdeModal() {
+    if (!activePaletteModal) return;
+    
+    const nuevaPaleta = {
+        id: Date.now(),
+        title: activePaletteModal.titulo,
+        colors: activePaletteModal.colorsArray
+    };
+
+    userSavedPalettes.unshift(nuevaPaleta);
+    localStorage.setItem('userSavedPalettes', JSON.stringify(userSavedPalettes));
+    renderizarPaletasGuardadasUsuario();
+    alert(`Paleta "${activePaletteModal.titulo}" guardada con éxito.`);
+}
+
+function borrarPaletaGuardadaUsuario(id) {
+    userSavedPalettes = userSavedPalettes.filter(p => p.id !== id);
+    localStorage.setItem('userSavedPalettes', JSON.stringify(userSavedPalettes));
+    renderizarPaletasGuardadasUsuario();
+}
+
+function renderizarPaletasGuardadasUsuario() {
+    const container = document.getElementById("userSavedPalettesGrid");
+    if (userSavedPalettes.length === 0) {
+        container.innerHTML = `<div style="font-size: 12px; color: #86868b; text-align: center;">No has guardado paletas aún.</div>`;
+        return;
+    }
+
+    container.innerHTML = userSavedPalettes.map(p => `
+        <div style="background:#f5f5f7; padding:10px; border-radius:10px; border:1px solid #e5e5e7; position:relative;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-size:12px; font-weight:600; color:#1d1d1f;">${p.title}</span>
+                <button class="btn-small btn-del" onclick="borrarPaletaGuardadaUsuario(${p.id})">✕ Borrar</button>
+            </div>
+            ${crearBarraPaletaHTML(p.title, p.colors)}
+        </div>
+    `).join('');
+}
+
 function hslToHex(h, s, l) {
     s /= 100; l /= 100;
     let c = (1 - Math.abs(2 * l - 1)) * s;
