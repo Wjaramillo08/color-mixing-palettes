@@ -28,7 +28,6 @@
             box-sizing: border-box;
         }
         
-        /* Barra de Pestañas Superior */
         .app-header-nav {
             display: flex;
             background: #e5e5e7;
@@ -250,7 +249,7 @@
             background: #ffffff; border-radius: 12px; width: 100%; max-width: 450px;
             padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); box-sizing: border-box;
         }
-        .modal-colors-list { display: flex; flex-direction: column; gap: 8px; margin: 15px 0; }
+        .modal-colors-list { display: flex; flex-direction: column; gap: 8px; margin: 15px 0; max-height: 250px; overflow-y: auto; }
         .modal-color-row {
             display: flex; align-items: center; justify-content: space-between;
             padding: 8px 12px; border-radius: 8px; background: #f5f5f7; cursor: pointer;
@@ -415,6 +414,14 @@
             <div id="customBuildContainer" style="margin-top: 10px;"></div>
         </div>
 
+        <!-- PALETAS GUARDADAS POR EL USUARIO -->
+        <div style="margin-bottom: 20px;">
+            <div class="section-title">Paletas Guardadas por el Usuario</div>
+            <div id="userSavedPalettesGrid" class="palettes-grid">
+                <div style="font-size: 12px; color: #86868b; text-align: center;">No has guardado paletas aún.</div>
+            </div>
+        </div>
+
         <!-- FILTROS POR CATEGORÍA -->
         <div class="category-filter-row">
             <div class="cat-chip active" onclick="filtrarCategoria('todas', this)">Todas</div>
@@ -438,7 +445,10 @@
         </div>
         <div id="modalPaletteBar" style="margin-top: 10px;"></div>
         <div class="modal-colors-list" id="modalColorsList"></div>
-        <div style="font-size: 11px; color:#86868b; text-align: center;">Toca cualquier color para enviarlo al Mezclador.</div>
+        <div style="display:flex; justify-content: space-between; align-items:center; margin-top:10px;">
+            <span style="font-size: 11px; color:#86868b;">Toca cualquier color para enviarlo al Mezclador.</span>
+            <button class="btn-sec" onclick="guardarPaletaCompletaDesdeModal()">💾 Guardar paleta</button>
+        </div>
     </div>
 </div>
 
