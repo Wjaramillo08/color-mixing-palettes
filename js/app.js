@@ -11,6 +11,7 @@ let ultimoCambioFueFoto = false;
 let estadoPrevioAFoto = null; 
 let modoRuedaActivo = false;
 let arrastrandoEnRueda = false;
+let expandirMezclasGuardadas = false; // Estado para colapsar/expandir mezclas
 
 const colorDisplay = document.getElementById('colorDisplay');
 const hexInput = document.getElementById('hexInput');
@@ -135,12 +136,10 @@ hexInput.addEventListener('keyup', (e) => {
     }
 });
 
-// 1. RESET AUTOMÁTICO DE ZOOM AL CONMUTAR ENTRE RUEDA E IMAGEN
 colorDisplay.addEventListener('click', (e) => {
     e.stopPropagation();
     modoRuedaActivo = !modoRuedaActivo;
     
-    // Reinicia zoom y paneo
     scale = 1; posX = 0; posY = 0;
     zoomSlider.value = 1; zoomVal.textContent = "1.0x";
 
@@ -491,6 +490,7 @@ function renderizarHerramienta() {
     if (modoRuedaActivo) dibujarRuedaCromatica();
 }
 
+// 1. OCULTA EL MODAL DE LA PALETA TEMPORALMENTE AL NAVEGAR AL MEZCLADOR
 window.cargarColorEnMezclador = function(hex) {
     const val = hex.replace('#', '').toUpperCase();
     guardarEstadoEnHistorial(false);
@@ -501,6 +501,11 @@ window.cargarColorEnMezclador = function(hex) {
     
     currentProportions = rgbToRyb(r, g, b);
     renderizarHerramienta();
+
+    // Oculta visualmente el modal para dejar libre el mezclador
+    const modalEl = document.getElementById("paletteModal");
+    if (modalEl) modalEl.classList.remove("active");
+
     switchPage('mixer');
 };
 
@@ -543,13 +548,16 @@ window.borrarMezclaGuardada = function(id) {
     renderizarListaGuardados();
 };
 
+// 3. MUESTRA LAS 2 MÁS RECIENTES Y COLAPSA/EXPANDE LAS DEMÁS MEZCLAS
 function renderizarListaGuardados() {
     if (savedColors.length === 0) {
         savedList.innerHTML = `<div style="font-size: 12px; color: #86868b; text-align: center;">No hay mezclas guardadas aún.</div>`;
         return;
     }
 
-    savedList.innerHTML = savedColors.map(item => {
+    const mostradas = expandirMezclasGuardadas ? savedColors : savedColors.slice(0, 2);
+
+    let html = mostradas.map(item => {
         const p = item.proportions;
         const resumenText = `R:${Math.round(p.r)}% Y:${Math.round(p.y)}% B:${Math.round(p.b)}% K:${Math.round(p.k)}% W:${Math.round(p.w)}%`;
         return `
@@ -568,7 +576,22 @@ function renderizarListaGuardados() {
             </div>
         `;
     }).join('');
+
+    if (savedColors.length > 2) {
+        html += `
+            <button class="toggle-expand-btn" onclick="toggleExpandirMezclas()">
+                ${expandirMezclasGuardadas ? '▲ Ver menos' : `▼ Ver más (${savedColors.length - 2} restantes)`}
+            </button>
+        `;
+    }
+
+    savedList.innerHTML = html;
 }
+
+window.toggleExpandirMezclas = function() {
+    expandirMezclasGuardadas = !expandirMezclasGuardadas;
+    renderizarListaGuardados();
+};
 
 const fileInput = document.getElementById('fileInput');
 const canvasAux = document.getElementById('canvasAux');
