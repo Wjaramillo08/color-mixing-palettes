@@ -207,6 +207,17 @@
             font-weight: 600; cursor: pointer; margin-top: 8px; text-align: center; width: 100%;
         }
 
+        /* Estilo para Título Editable de Paletas Guardadas */
+        .editable-title {
+            cursor: pointer;
+            border-bottom: 1px dashed #86868b;
+            padding-bottom: 1px;
+            transition: color 0.2s ease;
+        }
+        .editable-title:hover {
+            color: #0066cc;
+        }
+
         /* ==========================================================================
            3. ESTILOS DE LA PANTALLA PALETAS
            ========================================================================== */
@@ -470,7 +481,7 @@
         document.getElementById(`page-${page}`).classList.add('active');
         document.getElementById(`tab-${page}`).classList.add('active');
 
-        // 1. RE-MOSTRAR EL MODAL SI REGRESA A LA PESTAÑA DE PALETAS Y HABÍA UNA PALETA ACTIVA
+        // RE-MOSTRAR EL MODAL SI REGRESA A LA PESTAÑA DE PALETAS Y HABÍA UNA PALETA ACTIVA
         if (page === 'palettes' && typeof activePaletteModal !== 'undefined' && activePaletteModal) {
             const modalEl = document.getElementById("paletteModal");
             if (modalEl) modalEl.classList.add("active");
