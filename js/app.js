@@ -388,7 +388,7 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   1. CONTROL RIGUROSO Y LÍMITES FÍSICOS DE FIJACIÓN DE COLOR
+   BALANCE DE PROPORCIONES CON GUARDAR DE INTEGRIDAD
    ========================================================================== */
 function balancearProporciones(llaveModificada, objetivoValor) {
     objetivoValor = Math.min(100, Math.max(0, objetivoValor));
@@ -399,39 +399,35 @@ function balancearProporciones(llaveModificada, objetivoValor) {
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            let minPermitido = 0;
-            let maxPermitido = 100;
+            const deltaDeseado = objetivoValor - valorOriginal;
 
-            // Determinar hasta dónde puede llegar este slider antes de que otro pigmento clave toque 0
+            // Simulación previa
+            let invalido = false;
+            let tempProps = { ...currentProportions };
+            tempProps[llaveModificada] = objetivoValor;
+
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
-                if (fraccion > 0) {
-                    const limiteSup = valorOriginal + (currentProportions[k] / fraccion);
-                    if (limiteSup < maxPermitido) maxPermitido = limiteSup;
-                }
+                tempProps[k] = tempProps[k] - (deltaDeseado * fraccion);
+                if (tempProps[k] < -0.01) invalido = true;
             });
 
-            // Frenado físico del slider en el límite
-            const valorAjustado = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
-            const delta = valorAjustado - valorOriginal;
+            if (invalido) {
+                // Si la acción elimina un pigmento clave necesario, cancelamos el movimiento
+                renderizarHerramienta();
+                return;
+            }
 
-            currentProportions[llaveModificada] = valorAjustado;
-            otrasLlaves.forEach(k => {
-                const fraccion = currentProportions[k] / sumaOtras;
-                currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
-            });
-        } else {
-            currentProportions[llaveModificada] = valorOriginal;
-        }
-
-        // Ajuste residual fino
-        let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
-        let desajuste = 100 - sumaTotal;
-        if (Math.abs(desajuste) > 0.001 && otrasLlaves.length > 0) {
-            currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
+            // Aplicación segura
+            currentProportions = tempProps;
+            let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
+            let desajuste = 100 - sumaTotal;
+            if (Math.abs(desajuste) > 0.001 && otrasLlaves.length > 0) {
+                currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
+            }
         }
     } else {
-        // MODO LIBRE: Si se desacopla "Fijar color", recalculamos el nuevo color dinámicamente
+        // Modo libre: el usuario modifica las proporciones y se actualiza el color dinámicamente
         currentProportions[llaveModificada] = objetivoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
