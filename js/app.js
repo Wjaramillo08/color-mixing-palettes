@@ -1,5 +1,5 @@
 /* ==========================================================================
-   js/app.js - Lógica del Mezclador de Pintura y Conversión Pigmentaria
+   js/app.js - Lógica del Mezclador de Pintura (Bloqueo Directo en Fijar Color)
    ========================================================================== */
 
 let currentProportions = { r: 43, y: 40, b: 0, k: 3, w: 14 };
@@ -393,82 +393,14 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   RESTRICCIÓN MATEMÁTICA Y FRENO DE MANO PARA SLIDERS
+   ACTUALIZACIÓN DE PROPORCIONES (MEZCLA LIBRE)
    ========================================================================== */
-function obtenerLimitesSlider(llaveModificada) {
-    const valorActual = currentProportions[llaveModificada];
-    const otrasLlaves = Object.keys(currentProportions).filter(k => k !== llaveModificada);
-    const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
-
-    if (sumaOtras === 0) {
-        return { min: valorActual, max: valorActual };
-    }
-
-    let maxAumentoPermitido = 100 - valorActual;
-    let maxReduccionPermitida = valorActual;
-
-    otrasLlaves.forEach(k => {
-        const fraccion = currentProportions[k] / sumaOtras;
-        if (fraccion > 0) {
-            // Límite superior: cuando alguna otra llave llega a 0
-            const aumentoPosible = currentProportions[k] / fraccion;
-            if (aumentoPosible < maxAumentoPermitido) {
-                maxAumentoPermitido = aumentoPosible;
-            }
-
-            // Límite inferior: cuando la suma de las otras llaves alcanzaría el 100%
-            const reduccionPosible = (100 - currentProportions[k]) / fraccion;
-            if (reduccionPosible < maxReduccionPermitida) {
-                maxReduccionPermitida = reduccionPosible;
-            }
-        }
-    });
-
-    const minValor = Math.max(0, valorActual - maxReduccionPermitida);
-    const maxValor = Math.min(100, valorActual + maxAumentoPermitido);
-
-    return { min: minValor, max: maxValor };
-}
-
 function balancearProporciones(llaveModificada, objetivoValor) {
-    const valorOriginal = currentProportions[llaveModificada];
+    // Si se mueve un slider, la mezcla cambia y se calcula el nuevo color
+    currentProportions[llaveModificada] = Math.min(100, Math.max(0, objetivoValor));
+    const rgbObj = obtenerRgbActual();
+    currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
     
-    if (lockColorToggle.checked) {
-        // 1. Calcular el rango min/max estricto para esta variable
-        const limites = obtenerLimitesSlider(llaveModificada);
-        
-        // 2. Clampar el objetivo dentro de los límites físicos reales
-        const objetivoValido = Math.min(limites.max, Math.max(limites.min, objetivoValor));
-        const delta = objetivoValido - valorOriginal;
-
-        if (delta === 0) {
-            sliders[llaveModificada].value = Math.round(valorOriginal);
-            return;
-        }
-
-        const otrasLlaves = Object.keys(currentProportions).filter(k => k !== llaveModificada);
-        const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
-
-        if (sumaOtras > 0) {
-            currentProportions[llaveModificada] = objetivoValido;
-            otrasLlaves.forEach(k => {
-                const fraccion = currentProportions[k] / sumaOtras;
-                currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
-            });
-        }
-
-        let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
-        let desajuste = 100 - sumaTotal;
-        if (Math.abs(desajuste) > 0.001 && otrasLlaves.length > 0) {
-            currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
-        }
-    } else {
-        // Modo libre: cambiar proporciones actualiza el color del círculo en tiempo real
-        currentProportions[llaveModificada] = Math.min(100, Math.max(0, objetivoValor));
-        const rgbObj = obtenerRgbActual();
-        currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
-    }
-
     renderizarHerramienta();
 }
 
@@ -521,29 +453,22 @@ function renderizarHerramienta() {
         const sliderEl = sliders[key];
 
         sliderEl.value = Math.round(pct);
-        sliderEl.disabled = false;
-
-        // Si "Fijar color" está activo, forzamos físicamente los atributos min y max en el DOM del slider
-        if (estaBloqueadoElColor) {
-            const limites = obtenerLimitesSlider(key);
-            sliderEl.min = Math.ceil(limites.min).toString();
-            sliderEl.max = Math.floor(limites.max).toString();
-        } else {
-            sliderEl.min = "0";
-            sliderEl.max = "100";
-        }
+        // Deshabilitar sliders si "Fijar color" está activo
+        sliderEl.disabled = estaBloqueadoElColor;
 
         if (esModoPartes) {
             boxes[key].innerHTML = `<span class="parts-text">${porcentajeAFraccionTexto(pct)}</span>`;
         } else {
-            boxes[key].innerHTML = `<input type="number" id="num-${key}" class="percentage-input" min="${sliderEl.min}" max="${sliderEl.max}" value="${Math.round(pct)}"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>`;
+            boxes[key].innerHTML = `<input type="number" id="num-${key}" class="percentage-input" min="0" max="100" value="${Math.round(pct)}" ${estaBloqueadoElColor ? 'disabled' : ''}><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>`;
             
-            const nuevoInput = document.getElementById(`num-${key}`);
-            nuevoInput.addEventListener('focus', () => { guardarEstadoEnHistorial(false); });
-            nuevoInput.addEventListener('change', (e) => { 
-                guardarEstadoEnHistorial(false);
-                balancearProporciones(key, parseInt(e.target.value) || 0); 
-            });
+            if (!estaBloqueadoElColor) {
+                const nuevoInput = document.getElementById(`num-${key}`);
+                nuevoInput.addEventListener('focus', () => { guardarEstadoEnHistorial(false); });
+                nuevoInput.addEventListener('change', (e) => { 
+                    guardarEstadoEnHistorial(false);
+                    balancearProporciones(key, parseInt(e.target.value) || 0); 
+                });
+            }
         }
     });
 
