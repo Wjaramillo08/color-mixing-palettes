@@ -399,19 +399,19 @@ function balancearProporciones(llaveModificada, objetivoValor) {
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            // Calculamos el valor límite seguro para evitar desbalance o ceros inválidos
             let minPermitido = 0;
             let maxPermitido = 100;
 
+            // Determinar hasta dónde puede llegar este slider antes de que otro pigmento clave toque 0
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
                 if (fraccion > 0) {
-                    const limite = valorOriginal + (currentProportions[k] / fraccion);
-                    if (limite < maxPermitido) maxPermitido = limite;
+                    const limiteSup = valorOriginal + (currentProportions[k] / fraccion);
+                    if (limiteSup < maxPermitido) maxPermitido = limiteSup;
                 }
             });
 
-            // Clamp al rango estricto de seguridad
+            // Frenado físico del slider en el límite
             const valorAjustado = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
             const delta = valorAjustado - valorOriginal;
 
@@ -431,6 +431,7 @@ function balancearProporciones(llaveModificada, objetivoValor) {
             currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
         }
     } else {
+        // MODO LIBRE: Si se desacopla "Fijar color", recalculamos el nuevo color dinámicamente
         currentProportions[llaveModificada] = objetivoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
