@@ -85,6 +85,9 @@ function actualizarBotonUndo() {
     undoBtn.textContent = `⤺ Deshacer (${undoStack.length})`;
 }
 
+/* ==========================================================================
+   2. CONVERSIÓN CALIBRADA DE FUERZA DE TINTE (PIGMENTO REAL)
+   ========================================================================== */
 function rgbToRyb(r, g, b) {
     let rN = r / 255, gN = g / 255, bN = b / 255;
     let w = Math.min(rN, gN, bN);
@@ -99,14 +102,22 @@ function rgbToRyb(r, g, b) {
     let rMix = rP;
     let yMix = yP;
 
-    let total = rMix + yMix + bMix + k + w;
+    // Calibración de poder de tinte (Azul y Negro requieren significativamente menos peso real)
+    let rawB = bMix;
+    let rawK = k;
+
+    // Reducción de escala para compensar la alta fuerza pigmentaria
+    let adjustedB = Math.pow(rawB, 1.8) * 0.25; 
+    let adjustedK = Math.pow(rawK, 2.0) * 0.15; 
+
+    let total = rMix + yMix + adjustedB + adjustedK + w;
     if (total === 0) return { r: 0, y: 0, b: 0, k: 0, w: 100 };
 
     return {
         r: (rMix / total) * 100,
         y: (yMix / total) * 100,
-        b: (bMix / total) * 100,
-        k: (k / total) * 100,
+        b: (adjustedB / total) * 100,
+        k: (adjustedK / total) * 100,
         w: (w / total) * 100
     };
 }
@@ -384,36 +395,57 @@ function porcentajeAFraccionTexto(pct) {
     return fraccionStr !== "" ? fraccionStr : "0";
 }
 
+/* ==========================================================================
+   1. CONTROL Y VALIDACIÓN DE FIJACIÓN DE COLOR STRICTA
+   ========================================================================== */
 function balancearProporciones(llaveModificada, nuevoValor, esFinDelGesto = false) {
     if (esFinDelGesto) guardarEstadoEnHistorial(false);
 
     nuevoValor = Math.min(100, Math.max(0, nuevoValor));
     const antiguoValor = currentProportions[llaveModificada];
     const diferencia = nuevoValor - antiguoValor;
-    currentProportions[llaveModificada] = nuevoValor;
-
+    
     if (diferencia === 0) return;
 
     const estaBloqueadoElColor = lockColorToggle.checked;
 
     if (estaBloqueadoElColor) {
-        const otrasLlaves = Object.keys(currentProportions).filter(k => k !== llaveModificada);
-        const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
+        // Hacemos una prueba prospectiva
+        let testProportions = { ...currentProportions };
+        testProportions[llaveModificada] = nuevoValor;
 
-        if (sumaOtras > 0) {
+        const otrasLlaves = Object.keys(testProportions).filter(k => k !== llaveModificada);
+        const sumaOtrasAntigua = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
+
+        if (sumaOtrasAntigua > 0) {
             otrasLlaves.forEach(k => {
-                const fraccion = currentProportions[k] / sumaOtras;
-                currentProportions[k] -= diferencia * fraccion;
-                currentProportions[k] = Math.max(0, currentProportions[k]);
+                const fraccion = currentProportions[k] / sumaOtrasAntigua;
+                testProportions[k] -= diferencia * fraccion;
             });
-        } else {
-            otrasLlaves.forEach(k => { currentProportions[k] = (100 - nuevoValor) / 4; });
         }
 
+        // Validación: Ningún valor de pigmento puede ser negativo
+        const esInvalido = otrasLlaves.some(k => testProportions[k] < 0);
+
+        if (esInvalido) {
+            // Revertir slider a la posición previa y bloquear avance inválido
+            sliders[llaveModificada].value = Math.round(antiguoValor);
+            renderizarHerramienta();
+            return;
+        }
+
+        // Si la mezcla es válida, aplicamos los valores compensados
+        currentProportions = testProportions;
+
+        // Normalizamos si existe desajuste por redondeo
         let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
         let desajuste = 100 - sumaTotal;
-        if (desajuste !== 0) { currentProportions[otrasLlaves[0]] += desajuste; }
+        if (desajuste !== 0 && otrasLlaves.length > 0) { 
+            currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste); 
+        }
+
     } else {
+        currentProportions[llaveModificada] = nuevoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
     }
@@ -439,12 +471,14 @@ function interpolarRyb(rN, yN, bN) {
 }
 
 function obtenerRgbActual() {
+    // Amplificamos la influencia percibida de Azul y Negro en la mezcla final
     const rMat = currentProportions.r / 100;
     const yMat = currentProportions.y / 100;
-    const bMat = currentProportions.b / 100;
+    const bMat = Math.min(1, Math.pow(currentProportions.b / 100, 0.5) * 1.8);
     
     let rgbBase = interpolarRyb(rMat, yMat, bMat);
-    const factorK = 1 - (currentProportions.k / 100);
+    
+    const factorK = 1 - Math.min(1, Math.pow(currentProportions.k / 100, 0.45) * 1.7);
     let r = rgbBase[0] * factorK;
     let g = rgbBase[1] * factorK;
     let b = rgbBase[2] * factorK;
@@ -639,7 +673,7 @@ previewImage.addEventListener('click', function(e) {
             const px = xCenterX + dx;
             const py = yCenterY + dy;
 
-            if (px >= 0 && px < canvasAux.width && px < canvasAux.width && py >= 0 && py < canvasAux.height) {
+            if (px >= 0 && px < canvasAux.width && py >= 0 && py < canvasAux.height) {
                 const data = ctxAux.getImageData(px, py, 1, 1).data;
                 if (data[3] > 0) { 
                     sumR += data[0];
