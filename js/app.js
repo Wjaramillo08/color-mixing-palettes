@@ -393,26 +393,68 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   BALANCE DE PROPORCIONES CON LIMITACIÓN FÍSICA Y RANGOS DINÁMICOS (MIN/MAX)
+   RESTRICCIÓN MATEMÁTICA Y FRENO DE MANO PARA SLIDERS
    ========================================================================== */
+function obtenerLimitesSlider(llaveModificada) {
+    const valorActual = currentProportions[llaveModificada];
+    const otrasLlaves = Object.keys(currentProportions).filter(k => k !== llaveModificada);
+    const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
+
+    if (sumaOtras === 0) {
+        return { min: valorActual, max: valorActual };
+    }
+
+    let maxAumentoPermitido = 100 - valorActual;
+    let maxReduccionPermitida = valorActual;
+
+    otrasLlaves.forEach(k => {
+        const fraccion = currentProportions[k] / sumaOtras;
+        if (fraccion > 0) {
+            // Límite superior: cuando alguna otra llave llega a 0
+            const aumentoPosible = currentProportions[k] / fraccion;
+            if (aumentoPosible < maxAumentoPermitido) {
+                maxAumentoPermitido = aumentoPosible;
+            }
+
+            // Límite inferior: cuando la suma de las otras llaves alcanzaría el 100%
+            const reduccionPosible = (100 - currentProportions[k]) / fraccion;
+            if (reduccionPosible < maxReduccionPermitida) {
+                maxReduccionPermitida = reduccionPosible;
+            }
+        }
+    });
+
+    const minValor = Math.max(0, valorActual - maxReduccionPermitida);
+    const maxValor = Math.min(100, valorActual + maxAumentoPermitido);
+
+    return { min: minValor, max: maxValor };
+}
+
 function balancearProporciones(llaveModificada, objetivoValor) {
-    objetivoValor = Math.min(100, Math.max(0, objetivoValor));
     const valorOriginal = currentProportions[llaveModificada];
     
     if (lockColorToggle.checked) {
+        // 1. Calcular el rango min/max estricto para esta variable
+        const limites = obtenerLimitesSlider(llaveModificada);
+        
+        // 2. Clampar el objetivo dentro de los límites físicos reales
+        const objetivoValido = Math.min(limites.max, Math.max(limites.min, objetivoValor));
+        const delta = objetivoValido - valorOriginal;
+
+        if (delta === 0) {
+            sliders[llaveModificada].value = Math.round(valorOriginal);
+            return;
+        }
+
         const otrasLlaves = Object.keys(currentProportions).filter(k => k !== llaveModificada);
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            const delta = objetivoValor - valorOriginal;
-
-            currentProportions[llaveModificada] = objetivoValor;
+            currentProportions[llaveModificada] = objetivoValido;
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
                 currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
             });
-        } else {
-            currentProportions[llaveModificada] = valorOriginal;
         }
 
         let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
@@ -422,7 +464,7 @@ function balancearProporciones(llaveModificada, objetivoValor) {
         }
     } else {
         // Modo libre: cambiar proporciones actualiza el color del círculo en tiempo real
-        currentProportions[llaveModificada] = objetivoValor;
+        currentProportions[llaveModificada] = Math.min(100, Math.max(0, objetivoValor));
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
     }
@@ -478,44 +520,23 @@ function renderizarHerramienta() {
         const pct = currentProportions[key];
         const sliderEl = sliders[key];
 
-        // 1. Asignar valor actual
         sliderEl.value = Math.round(pct);
         sliderEl.disabled = false;
 
-        // 2. Si "Fijar color" está activo, calculamos límites dinámicos exactos para los atributos HTML min/max
+        // Si "Fijar color" está activo, forzamos físicamente los atributos min y max en el DOM del slider
         if (estaBloqueadoElColor) {
-            const otrasLlaves = Object.keys(currentProportions).filter(k => k !== key);
-            const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
-
-            if (sumaOtras > 0) {
-                let maxAumentoPermitido = 100;
-
-                otrasLlaves.forEach(k => {
-                    const fraccion = currentProportions[k] / sumaOtras;
-                    if (fraccion > 0) {
-                        const limite = pct + (currentProportions[k] / fraccion);
-                        if (limite < maxAumentoPermitido) maxAumentoPermitido = limite;
-                    }
-                });
-
-                // Fijamos dinámicamente los límites del HTML5 Slider
-                sliderEl.min = "0";
-                sliderEl.max = Math.floor(maxAumentoPermitido).toString();
-            } else {
-                sliderEl.min = Math.round(pct).toString();
-                sliderEl.max = Math.round(pct).toString();
-            }
+            const limites = obtenerLimitesSlider(key);
+            sliderEl.min = Math.ceil(limites.min).toString();
+            sliderEl.max = Math.floor(limites.max).toString();
         } else {
-            // Modo libre: rango completo 0 - 100
             sliderEl.min = "0";
             sliderEl.max = "100";
         }
 
-        // Renderizar caja de valores o porcentajes
         if (esModoPartes) {
             boxes[key].innerHTML = `<span class="parts-text">${porcentajeAFraccionTexto(pct)}</span>`;
         } else {
-            boxes[key].innerHTML = `<input type="number" id="num-${key}" class="percentage-input" min="0" max="100" value="${Math.round(pct)}"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>`;
+            boxes[key].innerHTML = `<input type="number" id="num-${key}" class="percentage-input" min="${sliderEl.min}" max="${sliderEl.max}" value="${Math.round(pct)}"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>`;
             
             const nuevoInput = document.getElementById(`num-${key}`);
             nuevoInput.addEventListener('focus', () => { guardarEstadoEnHistorial(false); });
