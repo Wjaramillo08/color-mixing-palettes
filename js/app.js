@@ -1,5 +1,5 @@
 /* ==========================================================================
-   js/app.js - Lógica del Mezclador de Pintura y Conversión Pigmentaria
+   js/app.js - Lógica del Mezclador de Pintura y Conversión Pigmentaria Exacta
    ========================================================================== */
 
 let currentProportions = { r: 43, y: 40, b: 0, k: 3, w: 14 };
@@ -85,6 +85,9 @@ function actualizarBotonUndo() {
     undoBtn.textContent = `⤺ Deshacer (${undoStack.length})`;
 }
 
+/* ==========================================================================
+   CONVERSIÓN PIGMENTARIA RYB PRECISA Y BALANCEADA
+   ========================================================================== */
 function rgbToRyb(r, g, b) {
     let rN = r / 255, gN = g / 255, bN = b / 255;
     let w = Math.min(rN, gN, bN);
@@ -99,17 +102,14 @@ function rgbToRyb(r, g, b) {
     let rMix = rP;
     let yMix = yP;
 
-    let adjustedB = Math.pow(bMix, 1.8) * 0.25; 
-    let adjustedK = Math.pow(k, 2.0) * 0.15; 
-
-    let total = rMix + yMix + adjustedB + adjustedK + w;
+    let total = rMix + yMix + bMix + k + w;
     if (total === 0) return { r: 0, y: 0, b: 0, k: 0, w: 100 };
 
     return {
         r: (rMix / total) * 100,
         y: (yMix / total) * 100,
-        b: (adjustedB / total) * 100,
-        k: (adjustedK / total) * 100,
+        b: (bMix / total) * 100,
+        k: (k / total) * 100,
         w: (w / total) * 100
     };
 }
@@ -388,7 +388,7 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   BALANCEAR PROPORCIONES CON LÍMITES ESTÁTICOS Y CONTROL EN TIEMPO REAL
+   MANTENER PROPORCIONES PROPORCIONALES (FIJAR COLOR)
    ========================================================================== */
 function balancearProporciones(llaveModificada, objetivoValor) {
     objetivoValor = Math.min(100, Math.max(0, objetivoValor));
@@ -399,48 +399,41 @@ function balancearProporciones(llaveModificada, objetivoValor) {
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            let maxPermitido = 100;
-            let minPermitido = 0;
+            let delta = objetivoValor - valorOriginal;
 
-            // Calcular dinámicamente los límites superior e inferior antes de romper la mezcla
+            // Verificar si el movimiento consumiría completamente algún pigmento necesario
+            let maxDeltaPermitido = Infinity;
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
                 if (fraccion > 0) {
-                    // Límite superior: cuando alguna de las otras llaves llega a 0
-                    const limiteSup = valorOriginal + (currentProportions[k] / fraccion);
-                    if (limiteSup < maxPermitido) maxPermitido = limiteSup;
-
-                    // Límite inferior: cuando la suma de las otras llaves llegaría a 100%
-                    const limiteInf = valorOriginal - ((100 - currentProportions[k]) / fraccion);
-                    if (limiteInf > minPermitido) minPermitido = limiteInf;
+                    const limite = currentProportions[k] / fraccion;
+                    if (limite < maxDeltaPermitido) maxDeltaPermitido = limite;
                 }
             });
 
-            // Forzar físicamente el valor del slider al límite permitido
-            const valorAjustado = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
-            
-            // Frenar físicamente el slider si el usuario intentó sobrepasarlo
-            sliders[llaveModificada].value = Math.round(valorAjustado);
+            // Si intenta arrastrar más allá de lo que los otros colores pueden tolerar, frenar
+            if (delta > maxDeltaPermitido) {
+                delta = maxDeltaPermitido;
+                objetivoValor = valorOriginal + delta;
+            }
 
-            const delta = valorAjustado - valorOriginal;
-
-            currentProportions[llaveModificada] = valorAjustado;
+            currentProportions[llaveModificada] = objetivoValor;
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
                 currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
             });
         } else {
-            sliders[llaveModificada].value = Math.round(valorOriginal);
             currentProportions[llaveModificada] = valorOriginal;
         }
 
+        // Ajuste fino residual por redondeo
         let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
         let desajuste = 100 - sumaTotal;
         if (Math.abs(desajuste) > 0.001 && otrasLlaves.length > 0) {
             currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
         }
     } else {
-        // MODO LIBRE: Actualizar slider y recalcular el tono resultante en el círculo
+        // Modo libre: cambiar proporciones actualiza dinámicamente el color mostrado
         currentProportions[llaveModificada] = objetivoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -469,11 +462,11 @@ function interpolarRyb(rN, yN, bN) {
 function obtenerRgbActual() {
     const rMat = currentProportions.r / 100;
     const yMat = currentProportions.y / 100;
-    const bMat = Math.min(1, Math.pow(currentProportions.b / 100, 0.5) * 1.8);
+    const bMat = currentProportions.b / 100;
     
     let rgbBase = interpolarRyb(rMat, yMat, bMat);
     
-    const factorK = 1 - Math.min(1, Math.pow(currentProportions.k / 100, 0.45) * 1.7);
+    const factorK = 1 - (currentProportions.k / 100);
     let r = rgbBase[0] * factorK;
     let g = rgbBase[1] * factorK;
     let b = rgbBase[2] * factorK;
@@ -499,7 +492,6 @@ function renderizarHerramienta() {
         if (esModoPartes) {
             boxes[key].innerHTML = `<span class="parts-text">${porcentajeAFraccionTexto(pct)}</span>`;
         } else {
-            // Actualización segura sin recrear event listeners innecesarios
             boxes[key].innerHTML = `<input type="number" id="num-${key}" class="percentage-input" min="0" max="100" value="${Math.round(pct)}"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>`;
             
             const nuevoInput = document.getElementById(`num-${key}`);
