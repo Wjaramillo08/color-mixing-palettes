@@ -393,7 +393,7 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   FRENADO MECÁNICO INQUEBRANTABLE AL FIJAR COLOR
+   BALANCE DE PROPORCIONES CON LIMITACIÓN FÍSICA Y RANGOS DINÁMICOS (MIN/MAX)
    ========================================================================== */
 function balancearProporciones(llaveModificada, objetivoValor) {
     objetivoValor = Math.min(100, Math.max(0, objetivoValor));
@@ -404,38 +404,14 @@ function balancearProporciones(llaveModificada, objetivoValor) {
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            let maxPermitido = 100;
-            let minPermitido = 0;
+            const delta = objetivoValor - valorOriginal;
 
-            // Calcular los límites absolutos antes de que cualquier otra llave toque 0 o sobrepase 100
-            otrasLlaves.forEach(k => {
-                const fraccion = currentProportions[k] / sumaOtras;
-                if (fraccion > 0) {
-                    // Si el slider aumenta, los otros bajan. Límite superior: cuando alguna llave llega a 0
-                    const limSup = valorOriginal + (currentProportions[k] / fraccion);
-                    if (limSup < maxPermitido) maxPermitido = limSup;
-
-                    // Si el slider disminuye, los otros suben. Límite inferior: cuando las otras sumadas alcanzarían 100%
-                    const limInf = valorOriginal - ((100 - currentProportions[k]) / fraccion);
-                    if (limInf > minPermitido) minPermitido = limInf;
-                }
-            });
-
-            // Restricción física directa
-            const valorCorregido = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
-            
-            // Forzar inmediatamente la posición física del slider en el DOM
-            sliders[llaveModificada].value = Math.round(valorCorregido);
-
-            const delta = valorCorregido - valorOriginal;
-
-            currentProportions[llaveModificada] = valorCorregido;
+            currentProportions[llaveModificada] = objetivoValor;
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
                 currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
             });
         } else {
-            sliders[llaveModificada].value = Math.round(valorOriginal);
             currentProportions[llaveModificada] = valorOriginal;
         }
 
@@ -445,7 +421,7 @@ function balancearProporciones(llaveModificada, objetivoValor) {
             currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
         }
     } else {
-        // MODO LIBRE: Actualizar el slider recalcula el color en la muestra
+        // Modo libre: cambiar proporciones actualiza el color del círculo en tiempo real
         currentProportions[llaveModificada] = objetivoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -496,11 +472,46 @@ function obtenerRgbActual() {
 }
 
 function renderizarHerramienta() {
+    const estaBloqueadoElColor = lockColorToggle.checked;
+
     Object.keys(currentProportions).forEach(key => {
         const pct = currentProportions[key];
-        sliders[key].value = Math.round(pct);
-        sliders[key].disabled = false;
-        
+        const sliderEl = sliders[key];
+
+        // 1. Asignar valor actual
+        sliderEl.value = Math.round(pct);
+        sliderEl.disabled = false;
+
+        // 2. Si "Fijar color" está activo, calculamos límites dinámicos exactos para los atributos HTML min/max
+        if (estaBloqueadoElColor) {
+            const otrasLlaves = Object.keys(currentProportions).filter(k => k !== key);
+            const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
+
+            if (sumaOtras > 0) {
+                let maxAumentoPermitido = 100;
+
+                otrasLlaves.forEach(k => {
+                    const fraccion = currentProportions[k] / sumaOtras;
+                    if (fraccion > 0) {
+                        const limite = pct + (currentProportions[k] / fraccion);
+                        if (limite < maxAumentoPermitido) maxAumentoPermitido = limite;
+                    }
+                });
+
+                // Fijamos dinámicamente los límites del HTML5 Slider
+                sliderEl.min = "0";
+                sliderEl.max = Math.floor(maxAumentoPermitido).toString();
+            } else {
+                sliderEl.min = Math.round(pct).toString();
+                sliderEl.max = Math.round(pct).toString();
+            }
+        } else {
+            // Modo libre: rango completo 0 - 100
+            sliderEl.min = "0";
+            sliderEl.max = "100";
+        }
+
+        // Renderizar caja de valores o porcentajes
         if (esModoPartes) {
             boxes[key].innerHTML = `<span class="parts-text">${porcentajeAFraccionTexto(pct)}</span>`;
         } else {
@@ -522,6 +533,10 @@ function renderizarHerramienta() {
 
     if (modoRuedaActivo) dibujarRuedaCromatica();
 }
+
+lockColorToggle.addEventListener('change', () => {
+    renderizarHerramienta();
+});
 
 window.cargarColorEnMezclador = function(hex) {
     const val = hex.replace('#', '').toUpperCase();
