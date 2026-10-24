@@ -85,9 +85,6 @@ function actualizarBotonUndo() {
     undoBtn.textContent = `⤺ Deshacer (${undoStack.length})`;
 }
 
-/* ==========================================================================
-   2. CONVERSIÓN CALIBRADA DE FUERZA DE TINTE (PIGMENTO REAL)
-   ========================================================================== */
 function rgbToRyb(r, g, b) {
     let rN = r / 255, gN = g / 255, bN = b / 255;
     let w = Math.min(rN, gN, bN);
@@ -102,13 +99,8 @@ function rgbToRyb(r, g, b) {
     let rMix = rP;
     let yMix = yP;
 
-    // Calibración de poder de tinte (Azul y Negro requieren significativamente menos peso real)
-    let rawB = bMix;
-    let rawK = k;
-
-    // Reducción de escala para compensar la alta fuerza pigmentaria
-    let adjustedB = Math.pow(rawB, 1.8) * 0.25; 
-    let adjustedK = Math.pow(rawK, 2.0) * 0.15; 
+    let adjustedB = Math.pow(bMix, 1.8) * 0.25; 
+    let adjustedK = Math.pow(k, 2.0) * 0.15; 
 
     let total = rMix + yMix + adjustedB + adjustedK + w;
     if (total === 0) return { r: 0, y: 0, b: 0, k: 0, w: 100 };
@@ -396,76 +388,50 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   1. CONTROL Y VALIDACIÓN DE FIJACIÓN DE COLOR STRICTA (LÍMITES FÍSICOS)
+   1. CONTROL RIGUROSO Y LÍMITES FÍSICOS DE FIJACIÓN DE COLOR
    ========================================================================== */
-function balancearProporciones(llaveModificada, nuevoValor, esFinDelGesto = false) {
-    if (esFinDelGesto) guardarEstadoEnHistorial(false);
-
-    nuevoValor = Math.min(100, Math.max(0, nuevoValor));
-    const antiguoValor = currentProportions[llaveModificada];
-    let diferencia = nuevoValor - antiguoValor;
+function balancearProporciones(llaveModificada, objetivoValor) {
+    objetivoValor = Math.min(100, Math.max(0, objetivoValor));
+    const valorOriginal = currentProportions[llaveModificada];
     
-    if (diferencia === 0) return;
-
-    const estaBloqueadoElColor = lockColorToggle.checked;
-
-    if (estaBloqueadoElColor) {
+    if (lockColorToggle.checked) {
         const otrasLlaves = Object.keys(currentProportions).filter(k => k !== llaveModificada);
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            // Calculamos cuánto es lo máximo que podemos AUMENTAR o DISMINUIR este slider 
-            // antes de que alguno de los otros pigmentos requeridos llegue a 0.
-            let maxDiferenciaPermitida = Infinity;
-            let minDiferenciaPermitida = -Infinity;
+            // Calculamos el valor límite seguro para evitar desbalance o ceros inválidos
+            let minPermitido = 0;
+            let maxPermitido = 100;
 
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
                 if (fraccion > 0) {
-                    // Si aumenta el slider (diferencia > 0), los otros bajan.
-                    // El límite de aumento es cuando currentProportions[k] llega a 0.
-                    const maxAumento = currentProportions[k] / fraccion;
-                    if (maxAumento < maxDiferenciaPermitida) {
-                        maxDiferenciaPermitida = maxAumento;
-                    }
-
-                    // Si disminuye el slider (diferencia < 0), los otros suben.
-                    // El límite de reducción es cuando la suma de los otros alcanzaría el 100%.
-                    const maxReduccion = (100 - currentProportions[k]) / fraccion;
-                    if (-maxReduccion > minDiferenciaPermitida) {
-                        minDiferenciaPermitida = -maxReduccion;
-                    }
+                    const limite = valorOriginal + (currentProportions[k] / fraccion);
+                    if (limite < maxPermitido) maxPermitido = limite;
                 }
             });
 
-            // Restringimos la diferencia al rango físicamente válido
-            diferencia = Math.min(maxDiferenciaPermitida, Math.max(minDiferenciaPermitida, diferencia));
-            
-            // Calculamos el valor final real del slider ajustado al límite
-            nuevoValor = antiguoValor + diferencia;
+            // Clamp al rango estricto de seguridad
+            const valorAjustado = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
+            const delta = valorAjustado - valorOriginal;
 
-            // Aplicamos la compensación proporcional exacta a las demás llaves
-            currentProportions[llaveModificada] = nuevoValor;
+            currentProportions[llaveModificada] = valorAjustado;
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
-                currentProportions[k] = Math.max(0, currentProportions[k] - (diferencia * fraccion));
+                currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
             });
         } else {
-            // Si los demás colores ya estaban en 0, no es posible ajustar proporciones manteniendo el color
-            nuevoValor = antiguoValor;
-            currentProportions[llaveModificada] = antiguoValor;
+            currentProportions[llaveModificada] = valorOriginal;
         }
 
-        // Ajustamos pequeñas desviaciones por redondeo
+        // Ajuste residual fino
         let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
         let desajuste = 100 - sumaTotal;
-        if (Math.abs(desajuste) > 0.01 && otrasLlaves.length > 0) {
+        if (Math.abs(desajuste) > 0.001 && otrasLlaves.length > 0) {
             currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
         }
-
     } else {
-        // Modo libre (desmarcado): ajusta el slider y recalcula el nuevo color resultante
-        currentProportions[llaveModificada] = nuevoValor;
+        currentProportions[llaveModificada] = objetivoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
     }
@@ -491,7 +457,6 @@ function interpolarRyb(rN, yN, bN) {
 }
 
 function obtenerRgbActual() {
-    // Amplificamos la influencia percibida de Azul y Negro en la mezcla final
     const rMat = currentProportions.r / 100;
     const yMat = currentProportions.y / 100;
     const bMat = Math.min(1, Math.pow(currentProportions.b / 100, 0.5) * 1.8);
@@ -528,10 +493,9 @@ function renderizarHerramienta() {
             
             const nuevoInput = document.getElementById(`num-${key}`);
             nuevoInput.addEventListener('focus', () => { guardarEstadoEnHistorial(false); });
-            nuevoInput.addEventListener('input', (e) => { balancearProporciones(key, parseInt(e.target.value) || 0, false); });
-            nuevoInput.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setTimeout(() => { nuevoInput.setSelectionRange(nuevoInput.value.length, nuevoInput.value.length); }, 10);
+            nuevoInput.addEventListener('change', (e) => { 
+                guardarEstadoEnHistorial(false);
+                balancearProporciones(key, parseInt(e.target.value) || 0); 
             });
         }
     });
@@ -564,7 +528,9 @@ window.cargarColorEnMezclador = function(hex) {
 Object.keys(sliders).forEach(key => {
     sliders[key].addEventListener('mousedown', () => { guardarEstadoEnHistorial(false); });
     sliders[key].addEventListener('touchstart', () => { guardarEstadoEnHistorial(false); }, {passive: true});
-    sliders[key].addEventListener('input', (e) => { balancearProporciones(key, parseInt(e.target.value), false); });
+    sliders[key].addEventListener('input', (e) => { 
+        balancearProporciones(key, parseInt(e.target.value)); 
+    });
 });
 
 modeToggle.addEventListener('change', (e) => {
