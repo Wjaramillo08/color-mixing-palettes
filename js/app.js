@@ -388,7 +388,7 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   BALANCE DE PROPORCIONES CON GUARDAR DE INTEGRIDAD
+   BALANCEAR PROPORCIONES CON LÍMITES ESTÁTICOS Y CONTROL EN TIEMPO REAL
    ========================================================================== */
 function balancearProporciones(llaveModificada, objetivoValor) {
     objetivoValor = Math.min(100, Math.max(0, objetivoValor));
@@ -399,35 +399,48 @@ function balancearProporciones(llaveModificada, objetivoValor) {
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            const deltaDeseado = objetivoValor - valorOriginal;
+            let maxPermitido = 100;
+            let minPermitido = 0;
 
-            // Simulación previa
-            let invalido = false;
-            let tempProps = { ...currentProportions };
-            tempProps[llaveModificada] = objetivoValor;
-
+            // Calcular dinámicamente los límites superior e inferior antes de romper la mezcla
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
-                tempProps[k] = tempProps[k] - (deltaDeseado * fraccion);
-                if (tempProps[k] < -0.01) invalido = true;
+                if (fraccion > 0) {
+                    // Límite superior: cuando alguna de las otras llaves llega a 0
+                    const limiteSup = valorOriginal + (currentProportions[k] / fraccion);
+                    if (limiteSup < maxPermitido) maxPermitido = limiteSup;
+
+                    // Límite inferior: cuando la suma de las otras llaves llegaría a 100%
+                    const limiteInf = valorOriginal - ((100 - currentProportions[k]) / fraccion);
+                    if (limiteInf > minPermitido) minPermitido = limiteInf;
+                }
             });
 
-            if (invalido) {
-                // Si la acción elimina un pigmento clave necesario, cancelamos el movimiento
-                renderizarHerramienta();
-                return;
-            }
+            // Forzar físicamente el valor del slider al límite permitido
+            const valorAjustado = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
+            
+            // Frenar físicamente el slider si el usuario intentó sobrepasarlo
+            sliders[llaveModificada].value = Math.round(valorAjustado);
 
-            // Aplicación segura
-            currentProportions = tempProps;
-            let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
-            let desajuste = 100 - sumaTotal;
-            if (Math.abs(desajuste) > 0.001 && otrasLlaves.length > 0) {
-                currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
-            }
+            const delta = valorAjustado - valorOriginal;
+
+            currentProportions[llaveModificada] = valorAjustado;
+            otrasLlaves.forEach(k => {
+                const fraccion = currentProportions[k] / sumaOtras;
+                currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
+            });
+        } else {
+            sliders[llaveModificada].value = Math.round(valorOriginal);
+            currentProportions[llaveModificada] = valorOriginal;
+        }
+
+        let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
+        let desajuste = 100 - sumaTotal;
+        if (Math.abs(desajuste) > 0.001 && otrasLlaves.length > 0) {
+            currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
         }
     } else {
-        // Modo libre: el usuario modifica las proporciones y se actualiza el color dinámicamente
+        // MODO LIBRE: Actualizar slider y recalcular el tono resultante en el círculo
         currentProportions[llaveModificada] = objetivoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -486,6 +499,7 @@ function renderizarHerramienta() {
         if (esModoPartes) {
             boxes[key].innerHTML = `<span class="parts-text">${porcentajeAFraccionTexto(pct)}</span>`;
         } else {
+            // Actualización segura sin recrear event listeners innecesarios
             boxes[key].innerHTML = `<input type="number" id="num-${key}" class="percentage-input" min="0" max="100" value="${Math.round(pct)}"><span style="font-size:12px;margin-left:1px;color:#86868b">%</span>`;
             
             const nuevoInput = document.getElementById(`num-${key}`);
