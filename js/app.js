@@ -396,55 +396,75 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   1. CONTROL Y VALIDACIÓN DE FIJACIÓN DE COLOR STRICTA
+   1. CONTROL Y VALIDACIÓN DE FIJACIÓN DE COLOR STRICTA (LÍMITES FÍSICOS)
    ========================================================================== */
 function balancearProporciones(llaveModificada, nuevoValor, esFinDelGesto = false) {
     if (esFinDelGesto) guardarEstadoEnHistorial(false);
 
     nuevoValor = Math.min(100, Math.max(0, nuevoValor));
     const antiguoValor = currentProportions[llaveModificada];
-    const diferencia = nuevoValor - antiguoValor;
+    let diferencia = nuevoValor - antiguoValor;
     
     if (diferencia === 0) return;
 
     const estaBloqueadoElColor = lockColorToggle.checked;
 
     if (estaBloqueadoElColor) {
-        // Hacemos una prueba prospectiva
-        let testProportions = { ...currentProportions };
-        testProportions[llaveModificada] = nuevoValor;
+        const otrasLlaves = Object.keys(currentProportions).filter(k => k !== llaveModificada);
+        const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
-        const otrasLlaves = Object.keys(testProportions).filter(k => k !== llaveModificada);
-        const sumaOtrasAntigua = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
+        if (sumaOtras > 0) {
+            // Calculamos cuánto es lo máximo que podemos AUMENTAR o DISMINUIR este slider 
+            // antes de que alguno de los otros pigmentos requeridos llegue a 0.
+            let maxDiferenciaPermitida = Infinity;
+            let minDiferenciaPermitida = -Infinity;
 
-        if (sumaOtrasAntigua > 0) {
             otrasLlaves.forEach(k => {
-                const fraccion = currentProportions[k] / sumaOtrasAntigua;
-                testProportions[k] -= diferencia * fraccion;
+                const fraccion = currentProportions[k] / sumaOtras;
+                if (fraccion > 0) {
+                    // Si aumenta el slider (diferencia > 0), los otros bajan.
+                    // El límite de aumento es cuando currentProportions[k] llega a 0.
+                    const maxAumento = currentProportions[k] / fraccion;
+                    if (maxAumento < maxDiferenciaPermitida) {
+                        maxDiferenciaPermitida = maxAumento;
+                    }
+
+                    // Si disminuye el slider (diferencia < 0), los otros suben.
+                    // El límite de reducción es cuando la suma de los otros alcanzaría el 100%.
+                    const maxReduccion = (100 - currentProportions[k]) / fraccion;
+                    if (-maxReduccion > minDiferenciaPermitida) {
+                        minDiferenciaPermitida = -maxReduccion;
+                    }
+                }
             });
+
+            // Restringimos la diferencia al rango físicamente válido
+            diferencia = Math.min(maxDiferenciaPermitida, Math.max(minDiferenciaPermitida, diferencia));
+            
+            // Calculamos el valor final real del slider ajustado al límite
+            nuevoValor = antiguoValor + diferencia;
+
+            // Aplicamos la compensación proporcional exacta a las demás llaves
+            currentProportions[llaveModificada] = nuevoValor;
+            otrasLlaves.forEach(k => {
+                const fraccion = currentProportions[k] / sumaOtras;
+                currentProportions[k] = Math.max(0, currentProportions[k] - (diferencia * fraccion));
+            });
+        } else {
+            // Si los demás colores ya estaban en 0, no es posible ajustar proporciones manteniendo el color
+            nuevoValor = antiguoValor;
+            currentProportions[llaveModificada] = antiguoValor;
         }
 
-        // Validación: Ningún valor de pigmento puede ser negativo
-        const esInvalido = otrasLlaves.some(k => testProportions[k] < 0);
-
-        if (esInvalido) {
-            // Revertir slider a la posición previa y bloquear avance inválido
-            sliders[llaveModificada].value = Math.round(antiguoValor);
-            renderizarHerramienta();
-            return;
-        }
-
-        // Si la mezcla es válida, aplicamos los valores compensados
-        currentProportions = testProportions;
-
-        // Normalizamos si existe desajuste por redondeo
+        // Ajustamos pequeñas desviaciones por redondeo
         let sumaTotal = Object.values(currentProportions).reduce((a, b) => a + b, 0);
         let desajuste = 100 - sumaTotal;
-        if (desajuste !== 0 && otrasLlaves.length > 0) { 
-            currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste); 
+        if (Math.abs(desajuste) > 0.01 && otrasLlaves.length > 0) {
+            currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
         }
 
     } else {
+        // Modo libre (desmarcado): ajusta el slider y recalcula el nuevo color resultante
         currentProportions[llaveModificada] = nuevoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
