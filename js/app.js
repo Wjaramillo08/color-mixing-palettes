@@ -1,5 +1,5 @@
 /* ==========================================================================
-   js/app.js - Lógica del Mezclador de Pintura y Conversión Pigmentaria Corregida
+   js/app.js - Lógica del Mezclador de Pintura y Conversión Pigmentaria
    ========================================================================== */
 
 let currentProportions = { r: 43, y: 40, b: 0, k: 3, w: 14 };
@@ -86,17 +86,15 @@ function actualizarBotonUndo() {
 }
 
 /* ==========================================================================
-   CONVERSIÓN PIGMENTARIA RYB REALISTA (SIN NEGRO EN COLORES BRILLANTES)
+   CONVERSIÓN PIGMENTARIA RYB REALISTA
    ========================================================================== */
 function rgbToRyb(r, g, b) {
     let rN = r / 255, gN = g / 255, bN = b / 255;
     
-    // Calculamos luminosidad para determinar si realmente requiere pigmento negro
     let max = Math.max(rN, gN, bN);
     let min = Math.min(rN, gN, bN);
     let lightness = (max + min) / 2;
 
-    // Solo asignar negro si el color es genuinamente oscuro
     let k = lightness < 0.35 ? (1 - max) * 0.8 : 0;
     let w = min;
 
@@ -105,7 +103,7 @@ function rgbToRyb(r, g, b) {
     let yP = Math.min(rP, gP);
     rP -= yP; gP -= yP;
 
-    let bMix = bP + (gP * 0.5); // El azul en verdes vivos requiere una proporción mucho menor
+    let bMix = bP + (gP * 0.5);
     let rMix = rP;
     let yMix = yP + (gP * 0.5);
 
@@ -395,7 +393,7 @@ function porcentajeAFraccionTexto(pct) {
 }
 
 /* ==========================================================================
-   BLOQUEO ESTRICTO DE LÍMITES PARA "FIJAR COLOR"
+   FRENADO MECÁNICO INQUEBRANTABLE AL FIJAR COLOR
    ========================================================================== */
 function balancearProporciones(llaveModificada, objetivoValor) {
     objetivoValor = Math.min(100, Math.max(0, objetivoValor));
@@ -406,31 +404,38 @@ function balancearProporciones(llaveModificada, objetivoValor) {
         const sumaOtras = otrasLlaves.reduce((acc, k) => acc + currentProportions[k], 0);
 
         if (sumaOtras > 0) {
-            let deltaDeseado = objetivoValor - valorOriginal;
-
-            // Calculamos cuál es la máxima reducción que pueden tolerar los otros pigmentos
-            let minPermitido = 0;
             let maxPermitido = 100;
+            let minPermitido = 0;
 
+            // Calcular los límites absolutos antes de que cualquier otra llave toque 0 o sobrepase 100
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
                 if (fraccion > 0) {
-                    // Si el slider sube, las otras bajan. El límite es cuando alguna toca 0.
-                    const limiteAumento = valorOriginal + (currentProportions[k] / fraccion);
-                    if (limiteAumento < maxPermitido) maxPermitido = limiteAumento;
+                    // Si el slider aumenta, los otros bajan. Límite superior: cuando alguna llave llega a 0
+                    const limSup = valorOriginal + (currentProportions[k] / fraccion);
+                    if (limSup < maxPermitido) maxPermitido = limSup;
+
+                    // Si el slider disminuye, los otros suben. Límite inferior: cuando las otras sumadas alcanzarían 100%
+                    const limInf = valorOriginal - ((100 - currentProportions[k]) / fraccion);
+                    if (limInf > minPermitido) minPermitido = limInf;
                 }
             });
 
-            // Frenar el slider si sobrepasa la tolerancia física
-            const valorFinalAjustado = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
-            const deltaReal = valorFinalAjustado - valorOriginal;
+            // Restricción física directa
+            const valorCorregido = Math.min(maxPermitido, Math.max(minPermitido, objetivoValor));
+            
+            // Forzar inmediatamente la posición física del slider en el DOM
+            sliders[llaveModificada].value = Math.round(valorCorregido);
 
-            currentProportions[llaveModificada] = valorFinalAjustado;
+            const delta = valorCorregido - valorOriginal;
+
+            currentProportions[llaveModificada] = valorCorregido;
             otrasLlaves.forEach(k => {
                 const fraccion = currentProportions[k] / sumaOtras;
-                currentProportions[k] = Math.max(0, currentProportions[k] - (deltaReal * fraccion));
+                currentProportions[k] = Math.max(0, currentProportions[k] - (delta * fraccion));
             });
         } else {
+            sliders[llaveModificada].value = Math.round(valorOriginal);
             currentProportions[llaveModificada] = valorOriginal;
         }
 
@@ -440,7 +445,7 @@ function balancearProporciones(llaveModificada, objetivoValor) {
             currentProportions[otrasLlaves[0]] = Math.max(0, currentProportions[otrasLlaves[0]] + desajuste);
         }
     } else {
-        // Modo libre (sin fijar color): actualizar slider recalcula el color en la muestra
+        // MODO LIBRE: Actualizar el slider recalcula el color en la muestra
         currentProportions[llaveModificada] = objetivoValor;
         const rgbObj = obtenerRgbActual();
         currentHexColor = [rgbObj.r, rgbObj.g, rgbObj.b].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
